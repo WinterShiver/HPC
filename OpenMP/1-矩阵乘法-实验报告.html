@@ -1,0 +1,166 @@
+﻿<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Openmp</title>
+  <link rel="stylesheet" href="https://stackedit.io/style.css" />
+</head>
+
+<body class="stackedit">
+  <div class="stackedit__html"><h1 id="openmp实现矩阵乘法">Openmp实现矩阵乘法</h1>
+<p><strong>计试61 张翀 2140506063</strong></p>
+<h2 id="题目">题目</h2>
+<p>Create a program that computes a simple matrix vector multiplication b=Ax, either in fortran or C/C++. Use OpenMP directives to make it run in parallel.</p>
+<h2 id="思路">思路</h2>
+<p>矩阵与列向量相乘，每一行和列向量的乘法是独立的，可以并行执行。</p>
+<h2 id="代码">代码</h2>
+<p>核心命令：<code>#pragma omp parallel for num_threads(num_threads)</code><br>
+这条命令的含义是，紧跟代码的for循环被多个线程并行执行，线程数由参数<code>num_threads</code>确定。在两层for循环中，第一层的含义是各行依次乘以列向量，这个过程可以并行执行；第二层的含义是元素按对应位置相乘并累加完成矩阵求成绩，这个过程是串行过程。因此，应该并行第一层for循环。<br>
+为方便测试时间，设计函数<code>matGene</code>生成指定大小的矩阵，<code>vecGene</code>生成指定大小的向量，生成矩阵之后求乘积，再输出结果。设计代码如下：</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token macro property">#<span class="token directive keyword">include</span> <span class="token string">&lt;iostream&gt;</span></span>
+<span class="token macro property">#<span class="token directive keyword">include</span> <span class="token string">&lt;omp.h&gt;</span></span>
+<span class="token macro property">#<span class="token directive keyword">include</span> <span class="token string">&lt;cstdlib&gt;</span></span>
+<span class="token macro property">#<span class="token directive keyword">include</span> <span class="token string">&lt;ctime&gt;</span></span>
+<span class="token macro property">#<span class="token directive keyword">include</span> <span class="token string">&lt;cmath&gt;</span></span>
+<span class="token macro property">#<span class="token directive keyword">include</span> <span class="token string">&lt;stack&gt;</span></span>
+<span class="token keyword">using</span> <span class="token keyword">namespace</span> std<span class="token punctuation">;</span>
+
+<span class="token comment">// Run: g++ -fopenmp gauss.cpp</span>
+
+<span class="token keyword">void</span> <span class="token function">matGene</span><span class="token punctuation">(</span><span class="token keyword">double</span> <span class="token operator">*</span>A<span class="token punctuation">,</span> <span class="token keyword">int</span> size<span class="token punctuation">)</span><span class="token punctuation">{</span>
+    <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">int</span> i <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> i <span class="token operator">&lt;</span> size<span class="token punctuation">;</span> i<span class="token operator">++</span><span class="token punctuation">)</span><span class="token punctuation">{</span>
+        <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">int</span> j <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> j <span class="token operator">&lt;</span> size<span class="token punctuation">;</span> j<span class="token operator">++</span><span class="token punctuation">)</span><span class="token punctuation">{</span>
+            A<span class="token punctuation">[</span>i <span class="token operator">*</span> size <span class="token operator">+</span> j<span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token function">rand</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">%</span> <span class="token number">10</span><span class="token punctuation">;</span> <span class="token comment">//A[i][j]</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> <span class="token function">vecGene</span><span class="token punctuation">(</span><span class="token keyword">double</span> <span class="token operator">*</span>A<span class="token punctuation">,</span> <span class="token keyword">int</span> size<span class="token punctuation">)</span><span class="token punctuation">{</span>
+    <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">int</span> i <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> i <span class="token operator">&lt;</span> size<span class="token punctuation">;</span> i<span class="token operator">++</span><span class="token punctuation">)</span><span class="token punctuation">{</span>
+        A<span class="token punctuation">[</span>i<span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token function">rand</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">%</span> <span class="token number">5</span><span class="token punctuation">;</span> <span class="token comment">//A[i]</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> <span class="token function">matShow</span><span class="token punctuation">(</span><span class="token keyword">double</span> <span class="token operator">*</span>A<span class="token punctuation">,</span> <span class="token keyword">int</span> size<span class="token punctuation">)</span><span class="token punctuation">{</span>
+    <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">int</span> i <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> i <span class="token operator">&lt;</span> size<span class="token punctuation">;</span> i<span class="token operator">++</span><span class="token punctuation">)</span><span class="token punctuation">{</span>
+        <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">int</span> j <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> j <span class="token operator">&lt;</span> size<span class="token punctuation">;</span> j<span class="token operator">++</span><span class="token punctuation">)</span><span class="token punctuation">{</span>
+            cout <span class="token operator">&lt;&lt;</span> A<span class="token punctuation">[</span>i <span class="token operator">*</span> size <span class="token operator">+</span> j<span class="token punctuation">]</span> <span class="token operator">&lt;&lt;</span> <span class="token string">" "</span><span class="token punctuation">;</span> <span class="token comment">//A[i][j]</span>
+        <span class="token punctuation">}</span>
+        cout <span class="token operator">&lt;&lt;</span> endl<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> <span class="token function">vecShow</span><span class="token punctuation">(</span><span class="token keyword">double</span> <span class="token operator">*</span>A<span class="token punctuation">,</span> <span class="token keyword">int</span> size<span class="token punctuation">)</span><span class="token punctuation">{</span>
+    <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">int</span> i <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> i <span class="token operator">&lt;</span> size<span class="token punctuation">;</span> i<span class="token operator">++</span><span class="token punctuation">)</span><span class="token punctuation">{</span>
+        cout <span class="token operator">&lt;&lt;</span> A<span class="token punctuation">[</span>i<span class="token punctuation">]</span> <span class="token operator">&lt;&lt;</span> endl<span class="token punctuation">;</span> <span class="token comment">//A[i]</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token keyword">int</span> argc<span class="token punctuation">,</span> <span class="token keyword">char</span> <span class="token operator">*</span>argv<span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+
+    <span class="token comment">// data preparation</span>
+
+    <span class="token keyword">int</span> n <span class="token operator">=</span> <span class="token function">atoi</span><span class="token punctuation">(</span>argv<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">int</span> num_threads <span class="token operator">=</span> <span class="token function">atoi</span><span class="token punctuation">(</span>argv<span class="token punctuation">[</span><span class="token number">2</span><span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">double</span><span class="token operator">*</span> A <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token keyword">double</span><span class="token punctuation">[</span>n <span class="token operator">*</span> n <span class="token operator">+</span> <span class="token number">2</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+    <span class="token keyword">double</span><span class="token operator">*</span> x <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token keyword">double</span><span class="token punctuation">[</span>n <span class="token operator">+</span> <span class="token number">2</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+    <span class="token function">srand</span><span class="token punctuation">(</span><span class="token function">time</span><span class="token punctuation">(</span><span class="token constant">NULL</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">matGene</span><span class="token punctuation">(</span>A<span class="token punctuation">,</span> n<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">vecGene</span><span class="token punctuation">(</span>x<span class="token punctuation">,</span> n<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">// show data</span>
+    <span class="token comment">/*
+    cout &lt;&lt; "A = " &lt;&lt; endl;
+    matShow(A, n);
+    cout &lt;&lt; "x = " &lt;&lt; endl;
+    vecShow(x, n);
+    */</span> 
+
+    <span class="token comment">// parallel for</span>
+
+    <span class="token keyword">double</span><span class="token operator">*</span> b <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token keyword">double</span><span class="token punctuation">[</span>n <span class="token operator">+</span> <span class="token number">2</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">double</span> start_time <span class="token operator">=</span> <span class="token function">omp_get_wtime</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token macro property">#<span class="token directive keyword">pragma</span> omp parallel for num_threads(num_threads)</span>
+    <span class="token keyword">for</span><span class="token punctuation">(</span><span class="token keyword">int</span> i<span class="token operator">=</span><span class="token number">0</span><span class="token punctuation">;</span> i<span class="token operator">&lt;</span>n<span class="token punctuation">;</span> i<span class="token operator">++</span><span class="token punctuation">)</span><span class="token punctuation">{</span>
+        b<span class="token punctuation">[</span>i<span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+        <span class="token keyword">for</span><span class="token punctuation">(</span><span class="token keyword">int</span> j<span class="token operator">=</span><span class="token number">0</span><span class="token punctuation">;</span> j<span class="token operator">&lt;</span>n<span class="token punctuation">;</span> j<span class="token operator">++</span><span class="token punctuation">)</span><span class="token punctuation">{</span>
+            b<span class="token punctuation">[</span>i<span class="token punctuation">]</span> <span class="token operator">+</span><span class="token operator">=</span> A<span class="token punctuation">[</span>i <span class="token operator">*</span> n <span class="token operator">+</span> j<span class="token punctuation">]</span> <span class="token operator">*</span> x<span class="token punctuation">[</span>j<span class="token punctuation">]</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">double</span> parallel_time <span class="token operator">=</span> <span class="token function">omp_get_wtime</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">-</span> start_time<span class="token punctuation">;</span>
+
+    <span class="token comment">// show result</span>
+    <span class="token comment">/*
+    cout &lt;&lt; "b = " &lt;&lt; endl;
+    vecShow(b, n);
+    */</span>
+
+    <span class="token comment">// show time </span>
+
+    cout <span class="token operator">&lt;&lt;</span> <span class="token string">"Time: "</span> <span class="token operator">&lt;&lt;</span> parallel_time <span class="token operator">&lt;&lt;</span> endl<span class="token punctuation">;</span>
+    
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+</code></pre>
+<h2 id="实验结果">实验结果</h2>
+<p>使用如下命令编译并执行：<code>g++ -fopenmp main.cpp &amp;&amp; ./a.out mat_dim num_threads</code>，执行可执行文件时带的两个参数分别是矩阵维度和使用的线程数。<br>
+测试时间如下：</p>
+
+<table>
+<thead>
+<tr>
+<th align="center">线程数</th>
+<th align="center">1</th>
+<th align="center">2</th>
+<th align="center">并行加速比</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="center">256</td>
+<td align="center">0.0011235</td>
+<td align="center">0.0004969</td>
+<td align="center">2.2610</td>
+</tr>
+<tr>
+<td align="center">512</td>
+<td align="center">0.0009619</td>
+<td align="center">0.000554</td>
+<td align="center">1.7363</td>
+</tr>
+<tr>
+<td align="center">1024</td>
+<td align="center">0.0055994</td>
+<td align="center">0.0036887</td>
+<td align="center">1.5180</td>
+</tr>
+<tr>
+<td align="center">2048</td>
+<td align="center">0.0193594</td>
+<td align="center">0.0102305</td>
+<td align="center">1.8923</td>
+</tr>
+<tr>
+<td align="center">4096</td>
+<td align="center">0.0614695</td>
+<td align="center">0.0358153</td>
+<td align="center">1.7163</td>
+</tr>
+</tbody>
+</table><p>表格中最左侧一栏为测试时矩阵维度，表格中时间单位为秒。<br>
+<img alt="enter image description here" src="https://raw.githubusercontent.com/WinterShiver/WinterShiver.github.io/master/resources/1.png"><br>
+以上为程序运行时间的测试结果展示，为方便展示，横纵坐标均取对数。由图像可见两点：</p>
+<ul>
+<li>通过直线的大致斜率可见，矩阵乘法的算法是<span class="katex--inline"><span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>O</mi><mo stretchy="false">(</mo><msup><mi>n</mi><mn>2</mn></msup><mo stretchy="false">)</mo></mrow><annotation encoding="application/x-tex">O(n^2)</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height: 1.06em; vertical-align: -0.25em;"></span><span class="mord mathdefault" style="margin-right: 0.02em;">O</span><span class="mopen">(</span><span class="mord"><span class="mord mathdefault">n</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height: 0.81em;"><span style="top: -3.06em; margin-right: 0.05em;"><span class="pstrut" style="height: 2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">2</span></span></span></span></span></span></span></span><span class="mclose">)</span></span></span></span></span>的；</li>
+<li>通过2线程并行执行程序，程序确实能获得近似为2的加速比；</li>
+<li>维度数较小时，测量误差较大超过2的加速比是测量误差所导致的。</li>
+</ul>
+</div>
+</body>
+
+</html>
